@@ -1,1 +1,32 @@
 .env
+.env.*
+
+# Python bytecode & cache (fixed typo)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Project Data & Database
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Audio / TTS outputs
+*.mp3
+*.wav
+*.ogg
+
+# Logs
+*.log
+
+# Editor & OS settings
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
