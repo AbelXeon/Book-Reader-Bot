@@ -26,6 +26,12 @@ CREATE TABLE IF NOT EXISTS chapters (
     status TEXT NOT NULL DEFAULT 'pending'
 );
 CREATE INDEX IF NOT EXISTS ix_chapters_job ON chapters(job_id, idx);
+
+-- NEW (additive): per-user voice style text
+CREATE TABLE IF NOT EXISTS user_prefs (
+    user_id INTEGER PRIMARY KEY,
+    style   TEXT NOT NULL DEFAULT ''
+);
 """
 
 
@@ -61,6 +67,20 @@ async def set_engine(user_id: int, engine: str):
         "INSERT INTO users (user_id, engine) VALUES (?, ?) "
         "ON CONFLICT(user_id) DO UPDATE SET engine=excluded.engine",
         (user_id, engine),
+    )
+
+
+# ---------- voice style (NEW) ----------
+async def get_style(user_id: int) -> str:
+    row = await _run("SELECT style FROM user_prefs WHERE user_id=?", (user_id,), "one")
+    return row["style"] if row else ""
+
+
+async def set_style(user_id: int, style: str):
+    await _run(
+        "INSERT INTO user_prefs (user_id, style) VALUES (?, ?) "
+        "ON CONFLICT(user_id) DO UPDATE SET style=excluded.style",
+        (user_id, style),
     )
 
 
