@@ -1,5 +1,5 @@
 aiogram>=3.13
-aiosqlite>=0.20
+asyncpg>=0.30
 PyMuPDF>=1.24
 edge-tts>=6.1
 google-genai>=1.0
