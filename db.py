@@ -27,7 +27,6 @@ CREATE TABLE IF NOT EXISTS chapters (
 );
 CREATE INDEX IF NOT EXISTS ix_chapters_job ON chapters(job_id, idx);
 
--- NEW (additive): per-user voice style text
 CREATE TABLE IF NOT EXISTS user_prefs (
     user_id INTEGER PRIMARY KEY,
     style   TEXT NOT NULL DEFAULT ''
@@ -70,7 +69,7 @@ async def set_engine(user_id: int, engine: str):
     )
 
 
-# ---------- voice style (NEW) ----------
+# ---------- voice style ----------
 async def get_style(user_id: int) -> str:
     row = await _run("SELECT style FROM user_prefs WHERE user_id=?", (user_id,), "one")
     return row["style"] if row else ""
@@ -140,12 +139,64 @@ async def queued_job_ids():
 
 
 # ---------- chapters ----------
-async def pending_chapters(job_id: int):
+async def chapter_list(job_id: int):
+    """Light listing (no text) for the selection screen."""
     return await _run(
-        "SELECT * FROM chapters WHERE job_id=? AND status!='done' ORDER BY idx",
+        "SELECT id, idx, title, status, LENGTH(text) AS chars "
+        "FROM chapters WHERE job_id=? ORDER BY idx",
         (job_id,),
         "all",
     )
+
+
+async def skip_by_idx(job_id: int, idxs: list[int]):
+    if not idxs:
+        return
+    ph = ",".join("?" * len(idxs))
+    await _run(
+        f"UPDATE chapters SET status='skipped' WHERE job_id=? AND idx IN ({ph})",
+        (job_id, *idxs),
+    )
+
+
+async def toggle_chapter(job_id: int, idx: int):
+    await _run(
+        "UPDATE chapters SET status = CASE status WHEN 'skipped' THEN 'pending' ELSE 'skipped' END "
+        "WHERE job_id=? AND idx=? AND status IN ('pending','skipped')",
+        (job_id, idx),
+    )
+
+
+async def set_all_chapters(job_id: int, status: str):
+    await _run(
+        "UPDATE chapters SET status=? WHERE job_id=? AND status IN ('pending','skipped')",
+        (status, job_id),
+    )
+
+
+async def invert_chapters(job_id: int):
+    await _run(
+        "UPDATE chapters SET status = CASE status WHEN 'skipped' THEN 'pending' ELSE 'skipped' END "
+        "WHERE job_id=? AND status IN ('pending','skipped')",
+        (job_id,),
+    )
+
+
+async def pending_chapters(job_id: int):
+    return await _run(
+        "SELECT * FROM chapters WHERE job_id=? AND status NOT IN ('done','skipped') ORDER BY idx",
+        (job_id,),
+        "all",
+    )
+
+
+async def selected_ids(job_id: int) -> list[int]:
+    rows = await _run(
+        "SELECT id FROM chapters WHERE job_id=? AND status!='skipped' ORDER BY idx",
+        (job_id,),
+        "all",
+    )
+    return [r["id"] for r in rows]
 
 
 async def mark_chapter_done(chapter_id: int):
@@ -154,7 +205,8 @@ async def mark_chapter_done(chapter_id: int):
 
 async def progress(job_id: int):
     row = await _run(
-        "SELECT SUM(status='done') AS done, COUNT(*) AS total FROM chapters WHERE job_id=?",
+        "SELECT SUM(status='done') AS done, COUNT(*) AS total "
+        "FROM chapters WHERE job_id=? AND status!='skipped'",
         (job_id,),
         "one",
     )
